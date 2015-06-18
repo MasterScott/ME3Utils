@@ -6,6 +6,8 @@
 HINSTANCE t_hInst;
 HINSTANCE hLib;
 
+FILE* Log;
+
 BYTE pattern[] = { 0x8B, 0x11, 0x8B, 0x42, 0x0C,
 0x57, 0x56, 0xFF, 0xD0,
 0x8B, 0xC3, // <-- move eax,ebx; offset 0x9; will be replaced with 0xB0 0x01 to get mov al,1;
@@ -55,13 +57,8 @@ DWORD FindPattern(DWORD StartAddress, DWORD CodeLen, BYTE* Mask, char* StrMask, 
 	return StartAddress + i - 1;
 }
 
-DWORD WINAPI Start(LPVOID lpParam)
+void PatchChecks()
 {
-	FILE* Log;
-	fopen_s(&Log, "binkw32log.txt", "w");
-	fprintf(Log, "Autopatcher by Warranty Voider\n");
-	hLib = InitLibBinkw32();
-	fprintf(Log, "Got adresses\n");
 	DWORD patch1, patch2;
 	int count = 0;
 	while ((patch1 = FindPattern(0x401000, 0xE52000, pattern, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 0)) == 0 && count++ < 10)
@@ -104,8 +101,33 @@ DWORD WINAPI Start(LPVOID lpParam)
 		VirtualProtect((void*)patch2, 0x16, dwProtect, &dwProtect);
 		fprintf(Log, "Patch position 2: Patched\n");
 	}
-	fclose(Log);
+}
+
+DWORD WINAPI Start(LPVOID lpParam)
+{
+	// Start the debug logging.
+	fopen_s(&Log, "ME3Log.txt", "w");
+	fprintf(Log, "ME3Log - Logging started.\n");
+	fflush(Log);
+
+	// WV's patcher still included for now, write the standard log file for that.
+	FILE* WVLog;
+	fopen_s(&WVLog, "binkw32log.txt", "w");
+	fprintf(WVLog, "Autopatcher by Warranty Voider\n");
+	hLib = InitLibBinkw32();
+	fprintf(WVLog, "Got adresses\n");
+	fflush(WVLog);
+	fclose(WVLog); 
+
 	return 0;
+}
+
+void Cleanup()
+{
+	FreeLibrary(hLib);
+
+	fprintf(Log, "Shutting down, clean exit.\n");
+	fclose(Log);
 }
 
 BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
@@ -119,7 +141,7 @@ BOOL WINAPI DllMain(HINSTANCE hInst, DWORD reason, LPVOID)
 	}
 	if (reason == DLL_PROCESS_DETACH)
 	{
-		FreeLibrary(hLib);
+		Cleanup();
 	}
 
 	return 1;
