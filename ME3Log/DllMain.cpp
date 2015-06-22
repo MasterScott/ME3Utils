@@ -1,12 +1,16 @@
 #include <windows.h>
 #include <stdio.h>
 #include "Binkw32.h"
+
 #pragma pack(1)
 
 HINSTANCE t_hInst;
 HINSTANCE hLib;
 
 FILE* Log;
+
+DWORD pFormat;
+va_list pArgList;
 
 BYTE pattern[] = { 0x8B, 0x11, 0x8B, 0x42, 0x0C,
 0x57, 0x56, 0xFF, 0xD0,
@@ -57,35 +61,35 @@ DWORD FindPattern(DWORD StartAddress, DWORD CodeLen, BYTE* Mask, char* StrMask, 
 	return StartAddress + i - 1;
 }
 
-void PatchChecks()
+void PatchChecks(FILE* WVLog)
 {
 	DWORD patch1, patch2;
 	int count = 0;
 	while ((patch1 = FindPattern(0x401000, 0xE52000, pattern, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 0)) == 0 && count++ < 10)
 	{
-		fprintf(Log, "Trying again...\n");
+		fprintf(WVLog, "Trying again...\n");
 		Sleep(300);
 	}
 	if (patch1 != 0)
 	{
-		fprintf(Log, "Patch position 1: 0x%x\n", patch1);
+		fprintf(WVLog, "Patch position 1: 0x%x\n", patch1);
 		DWORD dwProtect;
 		VirtualProtect((void*)(patch1 + 9), 0x2, PAGE_READWRITE, &dwProtect);
 		BYTE* p = (BYTE *)(patch1 + 9);
 		*p++ = 0xB0;
 		*p = 0x01;
 		VirtualProtect((void*)(patch1 + 9), 0x2, dwProtect, &dwProtect);
-		fprintf(Log, "Patch position 1: Patched\n");
+		fprintf(WVLog, "Patch position 1: Patched\n");
 	}
 	count = 0;
 	while ((patch2 = FindPattern(0x401000, 0xE52000, pattern2, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", 0)) == 0 && count++ < 10)
 	{
-		fprintf(Log, "Trying again...\n");
+		fprintf(WVLog, "Trying again...\n");
 		Sleep(300);
 	}
 	if (patch2 != 0)
 	{
-		fprintf(Log, "Patch position 2: 0x%x\n", patch2);
+		fprintf(WVLog, "Patch position 2: 0x%x\n", patch2);
 		DWORD dwProtect;
 		VirtualProtect((void*)patch2, 0x16, PAGE_READWRITE, &dwProtect);
 		BYTE* p = (BYTE *)(patch2 + 5);
@@ -99,8 +103,55 @@ void PatchChecks()
 		*p++ = 0;
 		*p = 0;
 		VirtualProtect((void*)patch2, 0x16, dwProtect, &dwProtect);
-		fprintf(Log, "Patch position 2: Patched\n");
+		fprintf(WVLog, "Patch position 2: Patched\n");
 	}
+}
+
+//__declspec(naked) void LogPrintf(void)
+void __cdecl LogPrintf(int dummy, wchar_t* pFormat, ...)
+{
+	va_list args;
+	va_start(args, pFormat);
+	vfwprintf(Log, pFormat, args);
+	fprintf(Log, "\n");
+	fflush(Log);
+	va_end(args);
+
+	/*__asm				// inline asm version:
+	{
+		push ebp
+		mov ebp, esp
+		push eax
+
+		lea eax, [ebp + 0x10]
+		push eax
+		mov eax, [ebp + 0xC]
+		push eax
+		mov eax, Log
+		push eax
+
+		call vfwprintf
+		add esp, 0xC
+
+		pop eax
+		pop ebp
+		retn
+	}*/
+}
+
+void DetourPrintFunction()
+{
+	BYTE *BioDiagnosticPrintf = (BYTE *)0x00467920;
+
+	DWORD OriginalProtection;
+	VirtualProtect(BioDiagnosticPrintf, 0x5, PAGE_READWRITE, &OriginalProtection);
+
+	DWORD JmpOffset = (DWORD)((DWORD)LogPrintf - (DWORD)BioDiagnosticPrintf) - 5;
+
+	*BioDiagnosticPrintf = 0xE9;					// write the long relative jmp
+	memcpy(BioDiagnosticPrintf + 1, &JmpOffset, 4); // copy the destination adress
+
+	VirtualProtect(BioDiagnosticPrintf, 0x5, OriginalProtection, &OriginalProtection);
 }
 
 DWORD WINAPI Start(LPVOID lpParam)
@@ -110,12 +161,15 @@ DWORD WINAPI Start(LPVOID lpParam)
 	fprintf(Log, "ME3Log - Logging started.\n");
 	fflush(Log);
 
+	DetourPrintFunction();
+
 	// WV's patcher still included for now, write the standard log file for that.
 	FILE* WVLog;
 	fopen_s(&WVLog, "binkw32log.txt", "w");
 	fprintf(WVLog, "Autopatcher by Warranty Voider\n");
 	hLib = InitLibBinkw32();
 	fprintf(WVLog, "Got adresses\n");
+	PatchChecks(WVLog);
 	fflush(WVLog);
 	fclose(WVLog); 
 
