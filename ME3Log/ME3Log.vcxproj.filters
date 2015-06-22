@@ -21,9 +21,15 @@
     <ClCompile Include="Binkw32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="WVpatch.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Binkw32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WVpatch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
