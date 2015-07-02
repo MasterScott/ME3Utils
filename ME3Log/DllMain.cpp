@@ -49,18 +49,18 @@ void DetourPrintFunction()
 
 DWORD WINAPI Start(LPVOID lpParam)
 {
+	// Set up the DLL forwarding
+	hLib = InitLibBinkw32();
+
+	// WV's patcher still included for now
+	WVPatchChecks();
+
 	// Start the debug logging.
 	fopen_s(&Log, "ME3Log.txt", "w");
 	fprintf(Log, "ME3Log - Logging started.\n");
 	fflush(Log);
 
 	DetourPrintFunction();
-
-	// Set up the DLL forwarding
-	hLib = InitLibBinkw32();
-
-	// WV's patcher still included for now
-	WVPatchChecks();
 
 	return 0;
 }
