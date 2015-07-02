@@ -9,15 +9,26 @@ HINSTANCE hLib;
 
 FILE* Log;
 
-// Mimicked function declaration to make the compiler generate the correct var_arg asm for us:
-void __cdecl LogPrintf(int dummy, wchar_t* pFormat, ...)
+struct ErrorClass
 {
+	DWORD *vtable;
+	DWORD unknA;
+	DWORD unknB;
+};
+
+// Mimicked function declaration to make the compiler generate the correct var_arg asm for us:
+void __cdecl LogPrintf(ErrorClass* error, wchar_t* pFormat, ...)
+{
+	// Prepend status of the unknown error class:
+	//fprintf(Log, "[%s, %s] ", error->unknA ? "true" : "false", error->unknB ? "true" : "false");
+
 	va_list args;
 	va_start(args, pFormat);
 	vfwprintf(Log, pFormat, args);
+	va_end(args);
+
 	fprintf(Log, "\n");
 	fflush(Log);
-	va_end(args);
 }
 
 void DetourPrintFunction()
